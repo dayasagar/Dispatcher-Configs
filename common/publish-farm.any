@@ -1,0 +1,356 @@
+################################################################################
+# /etc/httpd/conf/publish-farm.any
+################################################################################
+/publishfarm
+  {
+    # client headers which should be passed through to the render instances
+    # (feature supported since dispatcher build 2.6.3.5222)
+    /clientheaders
+      {
+      "referer"
+      "user-agent"
+      # Remove authorization header to support Basic Auth support in Stage
+      #"authorization"
+      "from"
+      "content-type"
+      "content-length"
+      "accept-charset"
+      "accept-encoding"
+      "accept-language"
+      "accept"
+      "host"
+      "if-match"
+      "if-none-match"
+      "if-range"
+      "if-unmodified-since"
+      "max-forwards"
+      "proxy-authorization"
+      "proxy-connection"
+      "range"
+      "cookie"
+      "cq-action"
+      "cq-handle"
+      "handle"
+      "action"
+      "cqstats"
+      "depth"
+      "translate"
+      "expires"
+      "date"
+      "dav"
+      "ms-author-via"
+      "if"
+      "lock-token"
+      "x-expected-entity-length"
+      "destination"
+      }
+
+    # hostname globbing for farm selection (virtual domain addressing)
+    /virtualhosts
+      {
+        $include "publish-vhosts.any"
+      }
+
+    # the load will be balanced among these render instances
+    /renders
+      {
+        $include "publish-renders.any"
+      }
+
+    # only handle the requests in the following acl. default is 'none'
+    # the glob pattern is matched against the first request line
+
+    # The filter section defines the requests that should be handled by the dispatcher.
+    #
+    # Entries can be either specified using globs, or elements of the request line:
+    #
+    # (1) globs will be compared against the entire request line, e.g.:
+    #
+    #     /0001 { /type "deny" /glob "* /index.html *" }
+    #
+    #   matches request "GET /index.html HTTP/1.1" but not "GET /index.html?a=b HTTP/1.1".
+    #
+    # (2) method/url/query/protocol will be compared againts the respective elements of
+    #   the request line, e.g.:
+    #
+    #     /0001 { /type "deny" /method "GET" /url "/index.html" }
+    #
+    #   matches both "GET /index.html" and "GET /index.html?a=b HTTP/1.1".
+    #
+    # Note: specifying elements of the request line is the preferred method.
+    /filter
+      {
+      ###################################################################
+      # Deny everything first and then allow specific entries
+      /0001 { /type "deny" /glob "*" }
+
+      ###################################################################
+      # Deny content grabbing
+      /0010 { /type "deny"  /url "*.json" }
+      /0011 { /type "deny"  /url "*.xml" }
+      /0012 { /type "deny"  /url "*.infinity.json" }
+      /0013 { /type "deny"  /url "*.tidy.json"     }
+      /0014 { /type "deny"  /url "*.sysview.xml"   }
+      /0015 { /type "deny"  /url "*.docview.json"  }
+      /0016 { /type "deny"  /url "*.docview.xml"  }
+      /0017 { /type "deny"  /url "*.*[0-9].json" }
+      /0018 { /type "deny"  /url "*.1.json" }
+
+      ###################################################################
+      # Allow content Web Page content
+      /0020 { /type "allow" /url "/content/*.html" }
+      /0021 { /type "deny"  /url "/content/*.*.html" }
+      /0022 { /type "allow" /url "/content/*/products/*.product-data.json" }
+      /0023 { /type "allow" /url "/content/*/products/*.product-growth.json" }
+      /0024 { /type "allow" /url "/content/*/*.product-landing.json" }
+      /0025 { /type "allow" /url "/content/*/insights.*.html" }
+      /0026 { /type "allow" /url "/content/*/insights/*.*.html" }
+
+      # Allow AEM to handle unauthorized requsts; else will serve from cache
+      /0028 { /type "allow" /url "/e-modules*" }
+
+      # Deny access under HTML pages unless specified below (images, load more)
+      /0029 { /type "deny" /url "*_jcr_content*" }
+
+      ###################################################################
+      # Allow content DAM Asset Content
+      /0030 { /type "allow" /url "/content/dam/legg-mason/*.*" }
+      /0031 { /type "deny" /url "/content/dam/legg-mason/*/_jcr_content*" }
+      /0032 { /type "deny" /url "/content/dam/legg-mason/*/jcr:content*" }
+
+      ###################################################################
+      # Allow Images
+      # Enable specific mime types in non-public content directories
+      /0041 { /type "allow" /url "*.gif"   }  # enable gifs
+      /0042 { /type "allow" /url "*.ico"   }  # enable icos
+      /0043 { /type "allow" /url "*.png"   }  # enable png
+      /0044 { /type "allow" /url "*.swf"   }  # enable flash
+      /0045 { /type "allow" /url "*.jpg"   }  # enable jpg
+      /0046 { /type "allow" /url "*.jpeg"  }  # enable jpeg
+      /0047 { /type "allow" /url "*.svg"   }  # enable svg
+
+      ###################################################################
+      # Allow Static site assets: CSS/JS/Images/Webfonts
+      /0051 { /type "allow" /url "/etc/clientlibs/*.css"   }  # css
+      /0052 { /type "allow" /url "/etc/clientlibs/*.js"    }  # javascript
+      /0053 { /type "allow" /url "/etc/clientlibs/*.woff"  }  # web fonts
+      /0054 { /type "allow" /url "/etc/clientlibs/*.woff2" }  # web fonts
+      /0055 { /type "allow" /url "/etc/clientlibs/*.ttf"   }  # ttf (web fonts)
+      /0056 { /type "allow" /url "/etc/clientlibs/*.eot"   }  # eot (web fonts)
+
+      ###################################################################
+      # Allow LM Web Services end-points
+      /0060 { /type "allow" /url "/lmservices/service/productdata/*"  }
+
+      ###################################################################
+      # LM - GET Selectors
+      /0070 { /type "allow" /url "/content/legg-mason/*/products/*/_jcr_content.content.html*" }  # For Clearbridge
+      /0090 { /type "allow" /url "/content/legg-mason/*.load-more.*.html" }
+      /0091 { /type "allow" /url "/content/legg-mason/*.autocomplete.json" }
+      /0092 { /type "allow" /url "/content/legg-mason/*.main.json" }
+      /0093 { /type "allow" /url "/etc/legg-mason/libraries/*/_jcr_content.list.json" }
+      /0094 { /type "allow" /url "/content/dam/*/*.info.json" }
+	  /0095 { /type "allow" /url "/content/legg-mason/*/_jcr_content/search-results.html" } #allow Literature Search AJAX request
+	  /0096 { /type "allow" /url "/content/legg-mason/*/_jcr_content/email-article.html" } #allow Email Share AJAX request
+	  /0097 { /type "allow" /url "/content/*.nocache.html" } #allow ajax base components
+	  /0098 { /type "allow" /url "/content/legg-mason/*.speedbump.html" } #allow Speedbump AJAX request
+	  /0099 { /type "allow" /url "/content/legg-mason/*/_jcr_content/global-search-bar.search-results.*.html" } #allow global search AJAX request
+
+      ###################################################################
+      # LM - User Interactions
+
+      # SAML Login
+      /0100 { /type "allow" /method "POST" /url "/saml_login" }
+
+      # Registration
+      /0110 { /type "allow" /method "POST" /url "/content/*.registrationsubmit.html" }
+      /0111 { /type "allow" /method "POST" /url "/content/*.registrationsubmit.json" }
+      /0112 { /type "allow" /method "POST" /url "/content/*.register.json" }
+      /0113 { /type "allow" /method "GET" /url "/content/*.activate.html" }
+
+      # Forgot Password
+      /0120 { /type "allow" /method "POST" /url "/content/*.forgotpassword.html" }
+
+      # Reset Password
+      /0130 { /type "allow" /method "POST" /url "/content/*.resetpassword.html" }
+
+      # Email Share
+      /0140 { /type "allow" /method "POST" /url "/content/*.email.json" }
+      
+      
+      ###################################################################
+      # E-Modules
+      /0150 { /type "allow" /method "GET" /url "/etc/legg-mason/e-modules/*" }
+      
+      ###################################################################
+      # Configurations for limelight player analytics integration
+      /0200 { /type "allow" /glob "GET /crossdomain.xml *" }
+      /0201 { /type "allow" /glob "GET /limelight-analytics-config.xml *" }
+	  
+      ###################################################################
+      # Disabled AEM Features
+      # Personalization
+      /500 { /type "allow" /method "GET" /url "/libs/cq/personalization/*"  }
+      /501 { /type "allow" /method "GET" /url "/etc/segmentation.segment.js"  }
+
+      # Query
+      /510 { /type "deny" /url "*.query.json" }
+
+      ###################################################################
+      # Servlets
+      # Deny all requests to bin
+      /600 { /type "deny" /url "/bin/*" }
+
+      # LM - Servlets
+      # Silverpop postback
+      /601 { /type "allow" /url "/bin/legg-mason/*" }
+
+      ###################################################################
+      # Fail-safe Denys - Never let *any* traffic to these roots
+      # Only Deny rules after this point
+      /9001 { /type "deny" /url "/admin/*"  }  # allow servlet engine admin
+      /9002 { /type "deny" /url "/crx/*"    }  # allow content repository
+      /9003 { /type "deny" /url "/system/*" }  # allow OSGi console
+      /9004 { /type "deny" /url "/home/*"   }
+      /9005 { /type "deny" /url "/tmp/*"    }
+      /9006 { /type "deny" /url "/var/*"    }
+      /9007 { /type "deny" /url "/apps/*"   }  # allow apps access
+      /9008 { /type "deny" /url "/libs/*"   }
+      /9009 { /type "deny"  /url "/libs/shindig/proxy*" } # if you enable /libs close access to proxy
+      /9010 { /type "deny"  /url "*jcr:content*" }
+      /9011 { /type "deny"  /url "/apps*" }
+      /9012 { /type "deny"  /url "/libs*" }
+
+      ###################################################################
+      # Exceptional Outliers
+
+      # Internal User (Impersonation)
+      /9150 { /type "allow" /method "GET" /url "/home/users/*.impersonate.json" }
+
+      # OOTB stores.init.js serves from under jcr:content which is blocked in /9010
+      /9900 { /type "allow" /method "GET" /url "/etc/clientcontext/*/stores.init.js"  }
+
+      ###################################################################
+      # Environmental Overrides
+      $include "publish-filter-overrides.any"
+  }
+
+  # allow propagation of replication posts (should seldomly be used)
+  /propagateSyndPost "0"
+
+  # the cache is used to store requests from the renders for faster delivery
+  # for a second time.
+  /cache
+    {
+    # the cacheroot must be equal to the document root of the webserver
+    /docroot "/mnt/var/www/html/publish"
+
+    # sets the level upto which files named ".stat" will be created in the
+    # document root of the webserver. when an activation request for some
+    # handle is received, only files within the same subtree are affected
+    # by the invalidation.
+    /statfileslevel "2"
+
+    # Flag indicating whether to cache responses to requests that contain
+    # authorization information.
+    /allowAuthorized "0"
+
+    # Flag indicating whether the dispatcher should serve stale content if
+    # no remote server is available.
+    /serveStaleOnError "0"
+
+    # the rules define, which pages should be cached. please note that
+    # - only GET requests are cached
+    # - only requests with an extension are cached
+    # - only requests without query parameters ( ? ) are cached
+    # - only unauthorized pages are cached unless allowUnauthorized is set to 1
+    /rules
+    {
+    /0000
+      {
+      # the globbing pattern to be compared against the url
+      # example: *             -> everything
+      #        : /foo/bar.*    -> only the /foo/bar documents
+      #        : /foo/bar/*    -> all pages below /foo/bar
+      #        : /foo/bar[./]* -> all pages below and /foo/bar itself
+      #        : *.html        -> all .html files
+      /glob "*"
+      /type "allow"
+      }
+      /0001 { /glob "*.nocache.*" /type "deny" }
+    }
+    # the invalidate section defines those pages which are 'invalidated' after
+    # any activation. please note that, the activated page itself and all
+    # related documents are flushed on an modification. for example: if the
+    # page /foo/bar is activated, all /foo/bar.* files are removed from the
+    # cache.
+    /invalidate
+      {
+        /0000 { /glob "*" /type "deny" }
+        /0001 { /glob "*.html" /type "allow" }
+
+        # Supports invalidation of JSON data (pages, etc, and dam)
+        /0002 { /glob "*.json" /type "allow" }
+
+        # Images
+        /0020 { /glob "/content/*.png"  /type "allow" }
+        /0021 { /glob "/content/*.jpg"  /type "allow" }
+        /0022 { /glob "/content/*.jpeg" /type "allow" }
+        /0023 { /glob "/content/*.gif"  /type "allow" }
+
+        # E-Modules
+        /0090 { /glob "/e-modules/*"  /type "deny" }
+
+        # Client Context segmentation
+        /0100 { /glob "/etc/segmentation.segment.js" /type "allow" }
+      }
+    /allowedClients
+    {
+      /0000
+        { /glob "*.*.*.*" /type "deny" }
+      $include "publish-invalidate-allowed.any"
+    }
+
+    # The ignoreUrlParams section contains query string parameter names that
+    # should be ignored when determining whether some request's output can be
+    # cached or delivered from cache.
+    #
+    # In this example configuration, the "q" parameter will be ignored.
+    /ignoreUrlParams
+      {
+        # Ignore all query params by default
+        /0001 { /glob "*" /type "allow" }
+
+        # Dont ignore well known query params
+
+        # Search queries and filters
+        /0002 { /glob "q" /type "deny" }
+        /0003 { /glob "_dc" /type "deny" }
+		/0004 { /glob "g*" /type "deny" }
+		/0005 { /glob "offset" /type "deny" }
+        /0006 { /glob "email" /type "deny" }
+		/0007 { /glob "url" /type "deny" }
+		/0008 { /glob "tagIds" /type "deny" }
+
+        # Password reset/registration activation
+        /0050 { /glob "token" /type "deny" }
+
+        # AEM Client Context
+        /0100 { /glob "path" /type "deny" }
+        
+        # Impersonation
+        /0110 { /glob "impersonate" /type "deny" }
+    }
+  }
+
+  # the statistics define, how the load should be balanced among the renders
+  # according to the media-type.
+  /statistics
+    {
+    /categories
+      {
+        /html { /glob "*.html" }
+        /others { /glob "*" }
+      }
+    }
+  }
